@@ -81,7 +81,9 @@ def _js_extract_cards() -> str:
         const posted = pick(node, [
           'span.job-post-day', 'span[class*="job-post-day"]',
           'span[class*="posted"]', 'span.time'
-        ]);
+        ]) || ((node.innerText || '').match(
+          /\\b(?:just now|just posted|today|yesterday|few\\s+(?:minutes?|hours?)\\s+ago|\\d+\\s*(?:minutes?|mins?|hours?|hrs?|days?|weeks?)\\s+ago)\\b/i
+        ) || [])[0] || null;
         const applicants = pick(node, [
           'span[class*="applicant"]', 'span[class*="applied"]'
         ]);
@@ -180,12 +182,18 @@ async def collect_jobs(
     jobs: list[JobListing] = []
     limit = max_jobs or prefs.search.max_jobs_per_run
     locations = prefs.search.locations or [None]
+    combinations = max(1, len(prefs.search.queries) * len(locations))
+    # Prevent the first broad result page from consuming the entire run cap.
+    # Share the cap across configured query/location pairs, allowing page 2
+    # only when page 1 did not yield enough unique listings for that pair.
+    per_combination_limit = max(1, (limit + combinations - 1) // combinations)
 
     for query in prefs.search.queries:
         for loc in locations:
+            combination_added = 0
             for pnum in range(1, prefs.search.pages_per_query + 1):
-                if len(jobs) >= limit:
-                    return jobs
+                if len(jobs) >= limit or combination_added >= per_combination_limit:
+                    break
                 url = build_search_url(query, loc, pnum)
                 console.print(f"[cyan]Search[/cyan] {url}")
                 try:
@@ -205,8 +213,9 @@ async def collect_jobs(
                             continue
                         seen.add(fp)
                         jobs.append(listing)
-                        if len(jobs) >= limit:
-                            return jobs
+                        combination_added += 1
+                        if len(jobs) >= limit or combination_added >= per_combination_limit:
+                            break
                 except Exception as exc:
                     console.print(f"[red]Search error:[/red] {exc}")
                     continue
