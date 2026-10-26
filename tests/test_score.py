@@ -89,3 +89,56 @@ def test_blacklisted_company_excluded():
 
 def test_experience_range_with_word_to():
     assert parse_experience("5 to 10 Yrs") == (5.0, 10.0)
+
+
+def test_stale_job_is_hard_excluded():
+    prefs = load_preferences()
+    job = JobListing(
+        job_id="stale",
+        title="Senior Power BI Developer",
+        company="Example",
+        location="Gurugram",
+        experience_min=8,
+        experience_max=12,
+        skills=["Power BI", "DAX", "SQL"],
+        posted_hours_ago=72,
+        url="https://www.naukri.com/job-listings-stale",
+    )
+    scored = score_job(job, prefs)
+    assert scored.eligible is False
+    assert any("exceeds maximum" in reason for reason in scored.score.exclusions)
+
+
+def test_unknown_posting_age_is_not_eligible():
+    prefs = load_preferences()
+    job = JobListing(
+        job_id="unknown-age",
+        title="Senior Power BI Developer",
+        company="Example",
+        location="Noida",
+        experience_min=8,
+        experience_max=12,
+        skills=["Power BI", "DAX", "SQL"],
+        url="https://www.naukri.com/job-listings-unknown-age",
+    )
+    scored = score_job(job, prefs)
+    assert scored.eligible is False
+    assert any("Posting age unavailable" in reason for reason in scored.score.exclusions)
+
+
+def test_outside_preferred_location_is_hard_excluded():
+    prefs = load_preferences()
+    job = JobListing(
+        job_id="outside",
+        title="Senior Power BI Developer",
+        company="Example",
+        location="Mumbai",
+        experience_min=8,
+        experience_max=12,
+        skills=["Power BI", "DAX", "SQL"],
+        posted_hours_ago=12,
+        url="https://www.naukri.com/job-listings-outside",
+    )
+    scored = score_job(job, prefs)
+    assert scored.eligible is False
+    assert any("outside configured preferred locations" in reason for reason in scored.score.exclusions)
