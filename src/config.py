@@ -2,19 +2,24 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_DIR = ROOT / "config"
 DATA_DIR = ROOT / "data"
 
 
-class ProfileConfig(BaseModel):
+class _Strict(BaseModel):
+    """Reject unknown keys so a typo in YAML cannot silently disable a safety rule."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class ProfileConfig(_Strict):
     name: str = "Amit Kumar"
     total_experience_years: float = 11
     relevant_experience_years: float = 10
@@ -28,24 +33,24 @@ class ProfileConfig(BaseModel):
     max_posting_age_hours: int = 48
 
 
-class RolesConfig(BaseModel):
+class RolesConfig(_Strict):
     primary: list[str] = Field(default_factory=list)
     secondary: list[str] = Field(default_factory=list)
 
 
-class SkillsConfig(BaseModel):
+class SkillsConfig(_Strict):
     must_have_any: list[str] = Field(default_factory=list)
     strong: list[str] = Field(default_factory=list)
     nice_to_have: list[str] = Field(default_factory=list)
 
 
-class ExcludeConfig(BaseModel):
+class ExcludeConfig(_Strict):
     title_keywords: list[str] = Field(default_factory=list)
     experience_max_years: float = 6
     companies: list[str] = Field(default_factory=list)
 
 
-class SearchConfig(BaseModel):
+class SearchConfig(_Strict):
     queries: list[str] = Field(default_factory=list)
     locations: list[str] = Field(default_factory=list)
     pages_per_query: int = 2
@@ -56,7 +61,7 @@ class SearchConfig(BaseModel):
     max_delay_seconds: float = 12
 
 
-class ScoringWeights(BaseModel):
+class ScoringWeights(_Strict):
     title_match: float = 0.30
     skills_match: float = 0.25
     experience_fit: float = 0.20
@@ -65,19 +70,19 @@ class ScoringWeights(BaseModel):
     competition: float = 0.05
 
 
-class ScoringConfig(BaseModel):
+class ScoringConfig(_Strict):
     min_score_to_apply: float = 0.55
     weights: ScoringWeights = Field(default_factory=ScoringWeights)
 
 
-class ApplicationConfig(BaseModel):
+class ApplicationConfig(_Strict):
     auto_submit: bool = False
     pause_on_unknown_question: bool = True
     pause_on_external_site: bool = True
     answer_screening_from_profile_only: bool = True
 
 
-class Preferences(BaseModel):
+class Preferences(_Strict):
     profile: ProfileConfig = Field(default_factory=ProfileConfig)
     roles: RolesConfig = Field(default_factory=RolesConfig)
     skills: SkillsConfig = Field(default_factory=SkillsConfig)

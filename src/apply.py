@@ -196,6 +196,13 @@ async def attempt_apply(
         mark_status(job.job_id, ApplicationStatus.FAILED, str(exc))
         return ApplicationStatus.FAILED
 
+    if not prefs.application.auto_submit and not Confirm.ask(
+        "Clicking Apply on Naukri can submit immediately. Proceed with this job?",
+        default=False,
+    ):
+        mark_status(job.job_id, ApplicationStatus.NEEDS_REVIEW, "declined before apply click")
+        return ApplicationStatus.NEEDS_REVIEW
+
     result = await _click_apply_if_present(page)
     if result == "already":
         console.print("[yellow]Already applied.[/yellow]")

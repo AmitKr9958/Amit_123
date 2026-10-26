@@ -13,6 +13,7 @@ def parse_experience(text: str | None) -> tuple[float | None, float | None]:
     if not text:
         return None, None
     t = text.replace("–", "-").replace("—", "-")
+    t = re.sub(r"(?<=\d)\s*to\s*(?=\d)", "-", t, flags=re.I)
     m = re.search(r"(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)", t)
     if m:
         return float(m.group(1)), float(m.group(2))

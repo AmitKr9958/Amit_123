@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
-from pathlib import Path
 
 from rich.console import Console
 from rich.table import Table
@@ -19,9 +18,9 @@ from .notify import notify_error, notify_run_summary
 from .score import score_job
 from .search import collect_jobs
 from .tracker import (
-    already_seen,
     count_applied_today,
     finish_run,
+    get_status,
     init_db,
     list_recent,
     record_scored,
@@ -76,15 +75,16 @@ async def cmd_search_and_score(*, apply: bool = False) -> None:
         console.print(f"\n[bold]Collected {jobs_seen} unique listings[/bold]")
 
         for job in jobs:
-            if already_seen(job.job_id):
+            prior = get_status(job.job_id)
+            # Anything already decided (applied/skipped/external/failed/needs_review)
+            # is left alone. QUEUED jobs from an earlier dry-run are re-evaluated so
+            # that `run --apply` after a dry-run actually has jobs to work on.
+            if prior is not None and prior != ApplicationStatus.QUEUED.value:
                 continue
             scored = score_job(job, prefs)
-            jobs_scored += 1
-            status = (
-                ApplicationStatus.QUEUED
-                if scored.eligible
-                else ApplicationStatus.SKIPPED
-            )
+            if prior is None:
+                jobs_scored += 1
+            status = ApplicationStatus.QUEUED if scored.eligible else ApplicationStatus.SKIPPED
             record_scored(scored, status=status)
             if scored.eligible:
                 scored_eligible.append(scored)
@@ -113,14 +113,6 @@ async def cmd_search_and_score(*, apply: bool = False) -> None:
             console.print(
                 "\n[cyan]Dry-run complete.[/cyan] Re-run with --apply to attempt applications "
                 "(still supervised; auto_submit defaults to false)."
-            )
-            notify_run_summary(
-                jobs_seen=jobs_seen,
-                jobs_scored=jobs_scored,
-                applied=0,
-                skipped=skipped,
-                failed=0,
-                top_titles=[s.job.title for s in scored_eligible[:5]],
             )
             return
 

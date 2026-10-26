@@ -48,8 +48,8 @@ Selectors will still break when Naukri ships UI changes; extraction is deliberat
 | New role keywords | `config/preferences.yaml` |
 | Card DOM changes | `src/search.py` → `_extract_cards` |
 | Apply button / chat UI | `src/apply.py` |
-| Optional LLM answers (facts-only) | new `src/ai_answers.py` gated by review |
-| Telegram summary | `src/notify.py` (stub) reading `TELEGRAM_*` from env |
+| Optional LLM answers (facts-only) | `src/ai_answers.py` (always gated by review) |
+| Telegram summary | `src/notify.py` reading `TELEGRAM_*` from env |
 
 ## Security checklist
 
@@ -57,4 +57,6 @@ Selectors will still break when Naukri ships UI changes; extraction is deliberat
 - [ ] `data/profile.yaml` gitignored
 - [ ] `data/browser_profile/` gitignored
 - [ ] Never click through CAPTCHA programmatically
+- [ ] Config models reject unknown YAML keys (typos fail loudly)
+- [ ] Apply click asks for confirmation first unless `auto_submit: true`
 - [ ] `auto_submit: false` unless you consciously enable it

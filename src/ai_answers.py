@@ -10,7 +10,6 @@ Rules enforced here:
 
 from __future__ import annotations
 
-import json
 import os
 import re
 from dataclasses import dataclass

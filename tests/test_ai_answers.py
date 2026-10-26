@@ -2,7 +2,6 @@
 
 from src.ai_answers import draft_answer, map_common_question
 
-
 PROFILE = {
     "personal": {
         "full_name": "Amit Kumar",

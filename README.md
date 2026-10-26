@@ -41,7 +41,7 @@ Ideas adapted from open-source Naukri bots (Selenium multi-tab search, CSV histo
 ## Setup
 
 ```bash
-git clone <your-new-empty-repo-url> naukri-apply
+git clone https://github.com/AmitKr9958/Amit_123.git naukri-apply
 cd naukri-apply
 
 python -m venv .venv
@@ -65,7 +65,8 @@ cp data/profile.example.yaml data/profile.yaml
 # 1. One-time (or when session expires): open browser and log in manually
 python -m src.cli login
 
-# 2. Dry-run: search + score, write to SQLite, print table (no apply)
+# 2. Dry-run: search + score, write to SQLite, print table (no apply).
+#    Eligible jobs are saved as QUEUED and picked up by step 3.
 python -m src.cli run
 
 # 3. Supervised apply for eligible jobs (still pauses; auto_submit=false)
@@ -96,9 +97,9 @@ Already seeded in `config/preferences.yaml`:
 | Skills | Power BI, DAX, Power Query, SQL, Excel, Power Automate, dashboards, reporting |
 | Experience | ~11 total / ~10 relevant |
 | Locations | Delhi, Gurugram/Gurgaon, Noida, Jaipur (+ explicit remote only) |
-| Min salary | ₹11 LPA (when disclosed) |
+| Min salary | ₹11 LPA (job rejected only if disclosed salary ceiling is below this) |
 | Freshness | prefer ≤ 48 hours |
-| Competition | prefer &lt; 50 applicants (ideal &lt; 25) |
+| Competition | prefer < 50 applicants (ideal < 25) |
 | Daily cap | 30 |
 | Concurrency | 1 |
 
@@ -160,8 +161,15 @@ Linux/macOS: use `scripts/run_daily.sh` with cron.
 
 ```bash
 pip install -e ".[dev]"
+ruff check .
 pytest tests/ -q
 ```
+
+CI (`.github/workflows/ci.yml`) runs both on every push and PR.
+
+> **Unattended runs:** the apply flow asks for confirmation in the terminal. Scheduled
+> runs should stay dry-run (the default in `scripts/run_daily.*`); use `--apply` only
+> in a session you are watching.
 
 ---
 

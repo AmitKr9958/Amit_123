@@ -6,7 +6,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field
 
 
 class ApplicationStatus(str, Enum):
@@ -39,7 +39,7 @@ class JobListing(BaseModel):
     description_snippet: str | None = None
     application_type: str | None = None  # easy_apply | company_site | unknown
     source_query: str | None = None
-    extracted_at: datetime = Field(default_factory=datetime.utcnow)
+    extracted_at: datetime = Field(default_factory=datetime.now)
 
     def fingerprint(self) -> str:
         """Stable key for deduplication."""

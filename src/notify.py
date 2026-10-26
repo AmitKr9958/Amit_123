@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+import html
 import os
-from typing import Any
 
 import httpx
 from rich.console import Console
@@ -41,7 +41,9 @@ def send_message(text: str, *, silent: bool = False) -> bool:
             r.raise_for_status()
         return True
     except Exception as exc:
-        console.print(f"[yellow]Telegram notify failed:[/yellow] {exc}")
+        # httpx error text embeds the request URL, which contains the bot token.
+        msg = str(exc).replace(token, "***")
+        console.print(f"[yellow]Telegram notify failed:[/yellow] {msg}")
         return False
 
 
@@ -63,14 +65,17 @@ def notify_run_summary(
         lines.append("")
         lines.append("<b>Top matches</b>")
         for t in top_titles[:8]:
-            lines.append(f"• {t}")
+            lines.append(f"• {html.escape(t)}")
     send_message("\n".join(lines))
 
 
 def notify_error(message: str) -> None:
-    send_message(f"<b>Naukri Apply error</b>\n{message[:500]}")
+    send_message(f"<b>Naukri Apply error</b>\n{html.escape(message[:500])}")
 
 
 def notify_applied(title: str, company: str | None, score: float | None) -> None:
     sc = f" (score {score:.2f})" if score is not None else ""
-    send_message(f"✅ Applied{sc}\n<b>{title}</b>\n{company or ''}", silent=True)
+    send_message(
+        f"✅ Applied{sc}\n<b>{html.escape(title)}</b>\n{html.escape(company or '')}",
+        silent=True,
+    )

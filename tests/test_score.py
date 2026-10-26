@@ -1,6 +1,6 @@
 """Unit tests for deterministic scoring (no browser required)."""
 
-from src.config import Preferences
+from src.config import load_preferences
 from src.extract import parse_experience, parse_posted_hours, parse_salary_lpa
 from src.models import JobListing
 from src.score import score_job
@@ -22,7 +22,7 @@ def test_parse_posted():
 
 
 def test_power_bi_role_scores_high():
-    prefs = Preferences()
+    prefs = load_preferences()
     job = JobListing(
         job_id="1",
         title="Senior Power BI Developer",
@@ -45,7 +45,7 @@ def test_power_bi_role_scores_high():
 
 
 def test_intern_excluded():
-    prefs = Preferences()
+    prefs = load_preferences()
     job = JobListing(
         job_id="2",
         title="Power BI Intern",
@@ -56,3 +56,36 @@ def test_intern_excluded():
     scored = score_job(job, prefs)
     assert scored.eligible is False
     assert any("intern" in e.lower() for e in scored.score.exclusions)
+
+
+def test_salary_below_floor_excluded():
+    prefs = load_preferences()
+    job = JobListing(
+        job_id="3",
+        title="Senior Power BI Developer",
+        location="Noida",
+        salary_text="4-6 Lacs PA",
+        salary_min_lpa=4,
+        salary_max_lpa=6,
+        url="https://www.naukri.com/job-listings-3",
+    )
+    scored = score_job(job, prefs)
+    assert scored.eligible is False
+    assert any("salary" in e.lower() for e in scored.score.exclusions)
+
+
+def test_blacklisted_company_excluded():
+    prefs = load_preferences()
+    prefs.exclude.companies = ["BadCorp"]
+    job = JobListing(
+        job_id="4",
+        title="Senior Power BI Developer",
+        company="BadCorp Pvt Ltd",
+        location="Noida",
+        url="https://www.naukri.com/job-listings-4",
+    )
+    assert score_job(job, prefs).eligible is False
+
+
+def test_experience_range_with_word_to():
+    assert parse_experience("5 to 10 Yrs") == (5.0, 10.0)

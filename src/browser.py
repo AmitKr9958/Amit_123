@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import os
+import random
 from pathlib import Path
-from typing import Optional
 
 from playwright.async_api import BrowserContext, Page, Playwright, async_playwright
 from rich.console import Console
@@ -35,9 +35,9 @@ class BrowserSession:
             else os.getenv("HEADLESS", "false").lower() in ("1", "true", "yes")
         )
         self.channel = channel or os.getenv("BROWSER_CHANNEL", "chromium")
-        self._playwright: Optional[Playwright] = None
-        self.context: Optional[BrowserContext] = None
-        self.page: Optional[Page] = None
+        self._playwright: Playwright | None = None
+        self.context: BrowserContext | None = None
+        self.page: Page | None = None
 
     async def start(self) -> Page:
         self._playwright = await async_playwright().start()
@@ -47,9 +47,6 @@ class BrowserSession:
             "viewport": {"width": 1366, "height": 900},
             "locale": "en-IN",
             "timezone_id": "Asia/Kolkata",
-            "args": [
-                "--disable-blink-features=AutomationControlled",
-            ],
         }
         if self.channel and self.channel != "chromium":
             launch_args["channel"] = self.channel
@@ -114,8 +111,9 @@ class BrowserSession:
             f"{timeout_seconds}s...[/yellow]"
         )
         await self.goto("https://www.naukri.com/nlogin/login")
-        deadline = asyncio.get_event_loop().time() + timeout_seconds
-        while asyncio.get_event_loop().time() < deadline:
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + timeout_seconds
+        while loop.time() < deadline:
             await asyncio.sleep(5)
             if await self.is_logged_in():
                 console.print("[green]Login detected. Continuing.[/green]")
@@ -126,8 +124,6 @@ class BrowserSession:
         )
 
     async def human_delay(self, min_s: float = 2.0, max_s: float = 6.0) -> None:
-        import random
-
         await asyncio.sleep(random.uniform(min_s, max_s))
 
     async def screenshot(self, name: str) -> Path:

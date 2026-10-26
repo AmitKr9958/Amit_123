@@ -2,22 +2,20 @@
 
 from __future__ import annotations
 
-import json
 import sqlite3
+from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime
-from pathlib import Path
-from typing import Iterator
 
 from .config import DATA_DIR, ensure_data_dirs
-from .models import ApplicationRecord, ApplicationStatus, ScoredJob
+from .models import ApplicationStatus, ScoredJob
 
 DB_PATH = DATA_DIR / "applied.db"
 
 
 def _connect() -> sqlite3.Connection:
     ensure_data_dirs()
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = sqlite3.connect(str(DB_PATH), timeout=30)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -70,17 +68,20 @@ def init_db() -> None:
         conn.executescript(SCHEMA)
 
 
-def already_seen(job_id: str) -> bool:
+def get_status(job_id: str) -> str | None:
+    """Return the stored status for a job, or None if it was never seen."""
     with db() as conn:
-        row = conn.execute(
-            "SELECT 1 FROM applications WHERE job_id = ?", (job_id,)
-        ).fetchone()
-        return row is not None
+        row = conn.execute("SELECT status FROM applications WHERE job_id = ?", (job_id,)).fetchone()
+        return row["status"] if row else None
+
+
+def already_seen(job_id: str) -> bool:
+    return get_status(job_id) is not None
 
 
 def record_scored(scored: ScoredJob, status: ApplicationStatus | None = None) -> None:
     status = status or scored.status
-    now = datetime.utcnow().isoformat()
+    now = datetime.now().isoformat()
     with db() as conn:
         conn.execute(
             """
@@ -113,7 +114,7 @@ def record_scored(scored: ScoredJob, status: ApplicationStatus | None = None) ->
 
 
 def mark_applied(job_id: str, reason: str | None = None) -> None:
-    now = datetime.utcnow().isoformat()
+    now = datetime.now().isoformat()
     with db() as conn:
         conn.execute(
             """
@@ -126,7 +127,7 @@ def mark_applied(job_id: str, reason: str | None = None) -> None:
 
 
 def mark_status(job_id: str, status: ApplicationStatus, reason: str | None = None) -> None:
-    now = datetime.utcnow().isoformat()
+    now = datetime.now().isoformat()
     with db() as conn:
         conn.execute(
             """
@@ -139,7 +140,7 @@ def mark_status(job_id: str, status: ApplicationStatus, reason: str | None = Non
 
 
 def count_applied_today() -> int:
-    today = datetime.utcnow().date().isoformat()
+    today = datetime.now().date().isoformat()
     with db() as conn:
         row = conn.execute(
             """
@@ -166,11 +167,9 @@ def list_recent(limit: int = 50) -> list[dict]:
 
 
 def start_run() -> int:
-    now = datetime.utcnow().isoformat()
+    now = datetime.now().isoformat()
     with db() as conn:
-        cur = conn.execute(
-            "INSERT INTO run_log (started_at) VALUES (?)", (now,)
-        )
+        cur = conn.execute("INSERT INTO run_log (started_at) VALUES (?)", (now,))
         return int(cur.lastrowid)
 
 
@@ -184,7 +183,7 @@ def finish_run(
     failed: int = 0,
     notes: str | None = None,
 ) -> None:
-    now = datetime.utcnow().isoformat()
+    now = datetime.now().isoformat()
     with db() as conn:
         conn.execute(
             """

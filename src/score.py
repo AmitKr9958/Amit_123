@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Iterable
+from collections.abc import Iterable
 
 from .config import Preferences
 from .models import JobListing, ScoreBreakdown, ScoredJob
@@ -87,7 +87,7 @@ def _experience_score(job: JobListing, prefs: Preferences) -> tuple[float, list[
     exp_max = job.experience_max
     if exp_min is None and exp_max is None and job.experience_text:
         # try parse "5-10 Yrs"
-        m = re.search(r"(\d+(?:\.\d+)?)\s*[-–to]+\s*(\d+(?:\.\d+)?)", job.experience_text or "")
+        m = re.search(r"(\d+(?:\.\d+)?)\s*(?:-|–|to)\s*(\d+(?:\.\d+)?)", job.experience_text or "")
         if m:
             exp_min, exp_max = float(m.group(1)), float(m.group(2))
         else:
@@ -176,11 +176,26 @@ def _competition_score(job: JobListing, prefs: Preferences) -> tuple[float, list
     return 0.2, reasons
 
 
+def _policy_exclusions(job: JobListing, prefs: Preferences) -> list[str]:
+    """Hard rules from config that were documented but never enforced."""
+    out: list[str] = []
+    company = _norm(job.company)
+    for blocked in prefs.exclude.companies:
+        if company and _norm(blocked) and _norm(blocked) in company:
+            out.append(f"Blacklisted company: {blocked}")
+    floor = prefs.profile.min_salary_lpa
+    # Only when salary is disclosed: reject if even the top of the range is below floor.
+    if floor and job.salary_max_lpa is not None and job.salary_max_lpa < floor:
+        out.append(f"Salary ceiling {job.salary_max_lpa} LPA below minimum {floor} LPA")
+    return out
+
+
 def score_job(job: JobListing, prefs: Preferences) -> ScoredJob:
     w = prefs.scoring.weights
     title_s, title_r = _title_score(job.title, prefs)
     skills_s, skills_r, missing = _skills_score(job, prefs)
     exp_s, exp_r, exclusions = _experience_score(job, prefs)
+    exclusions = exclusions + _policy_exclusions(job, prefs)
     loc_s, loc_r = _location_score(job, prefs)
     fresh_s, fresh_r = _freshness_score(job, prefs)
     comp_s, comp_r = _competition_score(job, prefs)
