@@ -19,7 +19,7 @@ NAUKRI_LOGIN_HINTS = ("login", "nlogin", "mnjuser/login")
 
 
 class BrowserSession:
-    """Owns a persistent Chromium context so the user can log in once."""
+    """Owns a persistent Microsoft Edge context so the user can log in once."""
 
     def __init__(
         self,
@@ -28,13 +28,22 @@ class BrowserSession:
         channel: str | None = None,
     ) -> None:
         ensure_data_dirs()
-        self.user_data_dir = user_data_dir or (DATA_DIR / "browser_profile")
+        self.channel = channel or os.getenv("BROWSER_CHANNEL", "msedge")
+        configured_profile = os.getenv("BROWSER_USER_DATA_DIR")
+        if user_data_dir is not None:
+            self.user_data_dir = user_data_dir
+        elif configured_profile:
+            self.user_data_dir = Path(configured_profile).expanduser()
+        else:
+            # Keep Edge's profile separate from any older Playwright Chromium profile.
+            profile_name = "browser_profile" if self.channel == "chromium" else "edge_profile"
+            self.user_data_dir = DATA_DIR / profile_name
+        self.user_data_dir.mkdir(parents=True, exist_ok=True)
         self.headless = (
             headless
             if headless is not None
             else os.getenv("HEADLESS", "false").lower() in ("1", "true", "yes")
         )
-        self.channel = channel or os.getenv("BROWSER_CHANNEL", "chromium")
         self._playwright: Playwright | None = None
         self.context: BrowserContext | None = None
         self.page: Page | None = None
@@ -52,7 +61,6 @@ class BrowserSession:
             launch_args["channel"] = self.channel
 
         self.context = await self._playwright.chromium.launch_persistent_context(**launch_args)
-        # Prefer existing page or open a fresh one
         if self.context.pages:
             self.page = self.context.pages[0]
         else:
@@ -91,13 +99,12 @@ class BrowserSession:
                     return False
             except Exception:
                 continue
-        # URL not on login path and no login CTA → assume session OK
         return True
 
     async def ensure_authenticated(self, timeout_seconds: int = 300) -> None:
         """
-        If not logged in, open login page and wait for the user to complete
-        OTP / CAPTCHA / password manually. Never stores or types credentials.
+        Reuse an authenticated session or wait for the user to complete login.
+        Credentials are never stored or typed; OTP / CAPTCHA / MFA remain manual.
         """
         assert self.page
         if await self.is_logged_in():
@@ -106,7 +113,7 @@ class BrowserSession:
 
         console.print(
             "[yellow]Not logged in. Opening Naukri login page.\n"
-            "Please complete login (password / OTP / CAPTCHA) in the browser window.\n"
+            "Complete password / OTP / CAPTCHA / MFA in the Edge window.\n"
             "Do not close the window. Waiting up to "
             f"{timeout_seconds}s...[/yellow]"
         )
@@ -119,7 +126,7 @@ class BrowserSession:
                 console.print("[green]Login detected. Continuing.[/green]")
                 return
         raise TimeoutError(
-            "Authentication timed out. Re-run after logging in manually, "
+            "Authentication timed out. Re-run after completing login manually, "
             "or increase the wait window."
         )
 
