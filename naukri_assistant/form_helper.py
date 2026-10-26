@@ -58,7 +58,7 @@ def field_label(field) -> str:
       }
       const wrapped = el.closest('label');
       if (wrapped) parts.push(wrapped.innerText || wrapped.textContent || '');
-      return parts.join(' ').replace(/\\s+/g, ' ').trim().slice(0, 220);
+      return parts.join(' ').replace(/\s+/g, ' ').trim().slice(0, 220);
     }""")
 
 
