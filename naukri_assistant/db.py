@@ -1,6 +1,7 @@
 """SQLite persistence, URL de-duplication, and application status tracking."""
 import json
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
@@ -14,6 +15,7 @@ def canonical_url(url: str) -> str:
 
 class JobStore:
     def __init__(self, path: Path):
+        path.parent.mkdir(parents=True, exist_ok=True)
         self.conn = sqlite3.connect(path)
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("""
@@ -37,17 +39,19 @@ class JobStore:
             return "invalid"
         job["url"] = url
         job_id = str(job.get("job_id") or url)
-        now = job.get("matched_at", "")
-        old = self.conn.execute("SELECT id FROM jobs WHERE id=?", (job_id,)).fetchone()
+        now = job.get("matched_at") or datetime.now(timezone.utc).isoformat(timespec="seconds")
+        recommended_status = "excluded" if job.get("excluded_reasons") else "saved"
+        old = self.conn.execute("SELECT id,status FROM jobs WHERE id=?", (job_id,)).fetchone()
         if old:
-            # Preserve existing application status and first_seen on rescans.
+            # Keep user-managed states (reviewed/applied/interview/offer) on rescans.
+            next_status = recommended_status if old["status"] in {"saved", "excluded"} else old["status"]
             self.conn.execute("""UPDATE jobs SET url=?,title=?,company=?,location=?,experience=?,posted_text=?,
-                summary=?,search_query=?,match_score=?,matched_skills=?,excluded_reasons=?,last_seen=?,raw_json=?
+                summary=?,search_query=?,match_score=?,matched_skills=?,excluded_reasons=?,status=?,last_seen=?,raw_json=?
                 WHERE id=?""", (
                 url, job.get("title", "Unknown"), job.get("company", "Unknown"), job.get("location", "Unknown"),
                 job.get("experience", ""), job.get("posted_text", ""), job.get("description", ""),
                 job.get("search_query", ""), int(job.get("match_score", 0)), job.get("matched_skills", ""),
-                job.get("excluded_reasons", ""), now, json.dumps(job, ensure_ascii=False), job_id
+                job.get("excluded_reasons", ""), next_status, now, json.dumps(job, ensure_ascii=False), job_id
             ))
             self.conn.commit()
             return "seen"
@@ -55,7 +59,7 @@ class JobStore:
             job_id, url, job.get("title", "Unknown"), job.get("company", "Unknown"),
             job.get("location", "Unknown"), job.get("experience", ""), job.get("posted_text", ""),
             job.get("description", ""), job.get("search_query", ""), int(job.get("match_score", 0)),
-            job.get("matched_skills", ""), job.get("excluded_reasons", ""), "saved", now, now,
+            job.get("matched_skills", ""), job.get("excluded_reasons", ""), recommended_status, now, now,
             json.dumps(job, ensure_ascii=False)
         ))
         self.conn.commit()
