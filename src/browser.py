@@ -68,10 +68,23 @@ class BrowserSession:
         return self.page
 
     async def close(self) -> None:
-        if self.context:
-            await self.context.close()
-        if self._playwright:
-            await self._playwright.stop()
+        """Best-effort cleanup; browser/driver shutdown errors must not mask the real result."""
+        try:
+            if self.context:
+                await self.context.close()
+        except Exception as exc:
+            console.print(f"[yellow]Browser context already closed during cleanup: {exc}[/yellow]")
+        finally:
+            self.context = None
+            self.page = None
+
+        try:
+            if self._playwright:
+                await self._playwright.stop()
+        except Exception as exc:
+            console.print(f"[yellow]Playwright driver already stopped during cleanup: {exc}[/yellow]")
+        finally:
+            self._playwright = None
 
     async def goto(self, url: str, wait: str = "domcontentloaded") -> None:
         assert self.page
