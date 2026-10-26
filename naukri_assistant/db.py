@@ -39,17 +39,16 @@ class JobStore:
         job_id = str(job.get("job_id") or url)
         now = job.get("matched_at", "")
         old = self.conn.execute("SELECT id FROM jobs WHERE id=?", (job_id,)).fetchone()
-        values = (
-            job.get("title", "Unknown"), job.get("company", "Unknown"),
-            job.get("location", "Unknown"), job.get("experience", ""), job.get("posted_text", ""),
-            job.get("description", ""), job.get("search_query", ""), int(job.get("match_score", 0)),
-            job.get("matched_skills", ""), job.get("excluded_reasons", ""), now,
-            json.dumps(job, ensure_ascii=False), job_id
-        )
         if old:
+            # Preserve existing application status and first_seen on rescans.
             self.conn.execute("""UPDATE jobs SET url=?,title=?,company=?,location=?,experience=?,posted_text=?,
                 summary=?,search_query=?,match_score=?,matched_skills=?,excluded_reasons=?,last_seen=?,raw_json=?
-                WHERE id=?""", (url, *values))
+                WHERE id=?""", (
+                url, job.get("title", "Unknown"), job.get("company", "Unknown"), job.get("location", "Unknown"),
+                job.get("experience", ""), job.get("posted_text", ""), job.get("description", ""),
+                job.get("search_query", ""), int(job.get("match_score", 0)), job.get("matched_skills", ""),
+                job.get("excluded_reasons", ""), now, json.dumps(job, ensure_ascii=False), job_id
+            ))
             self.conn.commit()
             return "seen"
         self.conn.execute("INSERT INTO jobs VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", (
