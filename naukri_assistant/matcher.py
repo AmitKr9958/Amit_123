@@ -12,19 +12,18 @@ def score_job(job: dict, cfg: dict) -> dict:
     company = job.get("company", "")
     description = job.get("description", "")
     location = job.get("location", "")
-    full_text = " ".join([title, company, description, location])
+    full_text = " ".join([title, company, description, location]).lower()
     tokens = _tokens(full_text)
-    def skill_matches(skill: str) -> bool:
-        st = _tokens(skill)
-        # Preserve skill labels such as "Power BI" where "BI" may not be tokenized
-        # consistently by some page summaries; exact normalized phrase is also checked.
-        return bool(st) and (st.issubset(tokens) or skill.lower() in full_text.lower())
-
-    matched = [s for s in cfg.get("skills", []) if skill_matches(s)]
-    excluded = [word for word in cfg.get("exclude_keywords", []) if word.lower() in full_text.lower()]
+    matched = []
+    for skill in cfg.get("skills", []):
+        # Use normalized phrase matching for multi-word skills (e.g. Power BI),
+        # which is more stable than relying on tokenization of short acronyms.
+        if skill.strip() and skill.lower() in full_text:
+            matched.append(skill)
+        elif _tokens(skill) and _tokens(skill).issubset(tokens):
+            matched.append(skill)
+    excluded = [word for word in cfg.get("exclude_keywords", []) if word.lower() in full_text]
     title_tokens = _tokens(title)
-    # Multi-word configured keywords need not match every title token: matching any
-    # meaningful token prevents a generic role keyword from rejecting good synonyms.
     role_match = any(_tokens(k) & title_tokens for k in cfg.get("keywords", []))
     location_match = any(loc.lower() in location.lower() for loc in cfg.get("locations", []) if loc.lower() != "remote") or "remote" in location.lower()
     score = min(45, len(matched) * 6) + (25 if role_match else 0) + (10 if location_match else 0)
