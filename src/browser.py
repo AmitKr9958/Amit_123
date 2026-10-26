@@ -15,6 +15,7 @@ from .selectors import LOGGED_IN_SELECTORS, LOGIN_CTA_SELECTORS
 
 console = Console()
 NAUKRI_HOME = "https://www.naukri.com/"
+NAUKRI_LOGIN_URL = "https://www.naukri.com/nlogin/login"
 NAUKRI_LOGIN_HINTS = ("login", "nlogin", "mnjuser/login")
 
 
@@ -90,29 +91,37 @@ class BrowserSession:
         assert self.page
         await self.page.goto(url, wait_until=wait, timeout=60_000)
 
-    async def is_logged_in(self) -> bool:
-        """Heuristic: presence of profile / logout elements after visiting home."""
+    async def _looks_logged_in_on_current_page(self) -> bool:
+        """Inspect the current page without navigating; crucial during manual login."""
         assert self.page
-        await self.goto(NAUKRI_HOME)
-        await asyncio.sleep(2)
         url = self.page.url.lower()
-        if any(h in url for h in NAUKRI_LOGIN_HINTS):
+        if any(hint in url for hint in NAUKRI_LOGIN_HINTS):
             return False
-        for sel in LOGGED_IN_SELECTORS:
+
+        for selector in LOGGED_IN_SELECTORS:
             try:
-                el = await self.page.query_selector(sel)
-                if el:
+                if await self.page.query_selector(selector):
                     return True
             except Exception:
                 continue
-        for sel in LOGIN_CTA_SELECTORS:
+
+        for selector in LOGIN_CTA_SELECTORS:
             try:
-                el = await self.page.query_selector(sel)
-                if el:
+                if await self.page.query_selector(selector):
                     return False
             except Exception:
                 continue
+
+        # If the URL has left the login flow and no login CTA is visible, treat it
+        # as likely authenticated. The next normal command can verify the session.
         return True
+
+    async def is_logged_in(self) -> bool:
+        """Navigate to home once, then inspect that page for login indicators."""
+        assert self.page
+        await self.goto(NAUKRI_HOME)
+        await asyncio.sleep(2)
+        return await self._looks_logged_in_on_current_page()
 
     async def ensure_authenticated(self, timeout_seconds: int = 300) -> None:
         """
@@ -125,18 +134,20 @@ class BrowserSession:
             return
 
         console.print(
-            "[yellow]Not logged in. Opening Naukri login page.\n"
-            "Complete password / OTP / CAPTCHA / MFA in the Edge window.\n"
+            "[yellow]Not logged in. Opening Naukri login page.\\n"
+            "Complete password / OTP / CAPTCHA / MFA in the Edge window.\\n"
             "Do not close the window. Waiting up to "
             f"{timeout_seconds}s...[/yellow]"
         )
-        await self.goto("https://www.naukri.com/nlogin/login")
+        await self.goto(NAUKRI_LOGIN_URL)
         loop = asyncio.get_running_loop()
         deadline = loop.time() + timeout_seconds
         while loop.time() < deadline:
             await asyncio.sleep(5)
-            if await self.is_logged_in():
-                console.print("[green]Login detected. Continuing.[/green]")
+            # Do not call is_logged_in() here: it navigates back to Naukri home,
+            # repeatedly interrupting the user's login form and causing refreshes.
+            if await self._looks_logged_in_on_current_page():
+                console.print("[green]Login appears complete. Continuing.[/green]")
                 return
         raise TimeoutError(
             "Authentication timed out. Re-run after completing login manually, "
