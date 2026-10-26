@@ -17,7 +17,9 @@ def score_job(job: dict, cfg: dict) -> dict:
     matched = [s for s in cfg.get("skills", []) if _tokens(s) and _tokens(s).issubset(tokens)]
     excluded = [word for word in cfg.get("exclude_keywords", []) if word.lower() in full_text.lower()]
     title_tokens = _tokens(title)
-    role_match = any(_tokens(k) and _tokens(k).issubset(title_tokens) for k in cfg.get("keywords", []))
+    # Multi-word configured keywords need not match every title token: matching any
+    # meaningful token prevents a generic role keyword from rejecting good synonyms.
+    role_match = any(_tokens(k) & title_tokens for k in cfg.get("keywords", []))
     location_match = any(loc.lower() in location.lower() for loc in cfg.get("locations", []) if loc.lower() != "remote") or "remote" in location.lower()
     score = min(45, len(matched) * 6) + (25 if role_match else 0) + (10 if location_match else 0)
     if excluded:
