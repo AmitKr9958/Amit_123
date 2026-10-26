@@ -14,7 +14,13 @@ def score_job(job: dict, cfg: dict) -> dict:
     location = job.get("location", "")
     full_text = " ".join([title, company, description, location])
     tokens = _tokens(full_text)
-    matched = [s for s in cfg.get("skills", []) if _tokens(s) and _tokens(s).issubset(tokens)]
+    def skill_matches(skill: str) -> bool:
+        st = _tokens(skill)
+        # Preserve skill labels such as "Power BI" where "BI" may not be tokenized
+        # consistently by some page summaries; exact normalized phrase is also checked.
+        return bool(st) and (st.issubset(tokens) or skill.lower() in full_text.lower())
+
+    matched = [s for s in cfg.get("skills", []) if skill_matches(s)]
     excluded = [word for word in cfg.get("exclude_keywords", []) if word.lower() in full_text.lower()]
     title_tokens = _tokens(title)
     # Multi-word configured keywords need not match every title token: matching any
