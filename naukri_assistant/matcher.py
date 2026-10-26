@@ -16,17 +16,16 @@ def score_job(job: dict, cfg: dict) -> dict:
     tokens = _tokens(full_text)
     matched = []
     for skill in cfg.get("skills", []):
-        # Use normalized phrase matching for multi-word skills (e.g. Power BI),
-        # which is more stable than relying on tokenization of short acronyms.
-        if skill.strip() and skill.lower() in full_text:
-            matched.append(skill)
-        elif _tokens(skill) and _tokens(skill).issubset(tokens):
+        skill_tokens = _tokens(skill)
+        if skill.strip() and (skill.lower() in full_text or (skill_tokens and skill_tokens.issubset(tokens))):
             matched.append(skill)
     excluded = [word for word in cfg.get("exclude_keywords", []) if word.lower() in full_text]
     title_tokens = _tokens(title)
     role_match = any(_tokens(k) & title_tokens for k in cfg.get("keywords", []))
     location_match = any(loc.lower() in location.lower() for loc in cfg.get("locations", []) if loc.lower() != "remote") or "remote" in location.lower()
-    score = min(45, len(matched) * 6) + (25 if role_match else 0) + (10 if location_match else 0)
+    # Phrase-based match contributes a small boost for each core role/skill signal.
+    # Keep scoring explainable and bounded; exclusion terms always force a zero.
+    score = min(60, len(matched) * 10) + (25 if role_match else 0) + (10 if location_match else 0)
     if excluded:
         score = 0
     job["match_score"] = min(100, score)
