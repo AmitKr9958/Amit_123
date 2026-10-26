@@ -3,18 +3,19 @@ from __future__ import annotations
 import argparse
 import csv
 import sys
-import webbrowser
 from pathlib import Path
 
 from naukri_assistant.browser import NaukriBrowser
 from naukri_assistant.config import load_config
 from naukri_assistant.db import JobStore
+from naukri_assistant.form_helper import is_naukri_host, prefill_known_fields
 from naukri_assistant.matcher import score_job
 from naukri_assistant.search import build_search_urls
 
 ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data"
 DB_PATH = DATA_DIR / "jobs.sqlite3"
+STATUS_CHOICES = ["saved", "excluded", "reviewed", "applied", "rejected", "interview", "offer", "closed"]
 
 
 def store() -> JobStore:
@@ -24,7 +25,7 @@ def store() -> JobStore:
 
 def command_login(_args: argparse.Namespace) -> int:
     cfg = load_config()
-    print("Opening a visible browser. Sign into Naukri manually, and complete any OTP/CAPTCHA yourself.")
+    print("Opening a visible browser. Sign into Naukri manually and complete any OTP/CAPTCHA yourself.")
     with NaukriBrowser(cfg) as browser:
         page = browser.new_page()
         page.goto("https://www.naukri.com/", wait_until="domcontentloaded")
@@ -39,19 +40,25 @@ def command_search(args: argparse.Namespace) -> int:
         cfg["limits"]["max_jobs_per_run"] = max(1, args.limit)
     db = store()
     processed = 0
-    new_jobs = 0
-    urls = build_search_urls(cfg)
-    print(f"Configured searches: {len(urls)}. PREVIEW ONLY: the tool never submits applications.")
+    new_eligible = 0
+    queries = build_search_urls(cfg)
+    print(f"Configured searches: {len(queries)}. PREVIEW ONLY: the tool never submits applications.")
+    stop_all = False
     try:
         with NaukriBrowser(cfg) as browser:
             page = browser.new_page()
-            for query, url in urls:
-                if processed >= cfg["limits"]["max_jobs_per_run"]:
+            for query, url in queries:
+                if processed >= cfg["limits"]["max_jobs_per_run"] or stop_all:
                     break
                 print(f"\n[SEARCH] {query} -> {url}")
                 try:
                     page.goto(url, wait_until="domcontentloaded", timeout=cfg["browser"]["navigation_timeout_ms"])
                     page.wait_for_timeout(1800)
+                    protection = browser.stop_reason(page)
+                    if protection:
+                        print(f"[SAFETY STOP] {protection}. Resolve manually and restart; no bypass attempted.")
+                        stop_all = True
+                        break
                     extracted = browser.extract_jobs(page, query, url)
                 except Exception as exc:
                     print(f"[WARN] Could not inspect search page: {exc}")
@@ -64,21 +71,29 @@ def command_search(args: argparse.Namespace) -> int:
                     scored = score_job(raw, cfg)
                     status = db.upsert_job(scored)
                     processed += 1
-                    new_jobs += int(status == "new")
+                    if status == "new" and scored.get("is_eligible"):
+                        new_eligible += 1
                     print_job(scored, status)
     finally:
         db.close()
-    print(f"\nDone. {new_jobs} new jobs discovered from {processed} cards. Use 'python run.py list' to review.")
+    print(f"\nDone. {new_eligible} new eligible jobs discovered from {processed} cards. Use 'python run.py list' to review.")
     return 0
 
 
 def print_job(job: dict, status: str) -> None:
-    marker = "NEW" if status == "new" else "SEEN"
+    if job.get("excluded_reasons"):
+        marker = "FILTERED"
+    else:
+        marker = "NEW" if status == "new" else "SEEN"
     print(f"  [{marker}] score={job.get('match_score', 0):>3} | {job.get('title', 'Unknown')} | {job.get('company', 'Unknown')} | {job.get('location', 'Unknown')}")
     if job.get("matched_skills"):
         print(f"        matched: {job['matched_skills']}")
     if job.get("excluded_reasons"):
-        print(f"        excluded: {job['excluded_reasons']}")
+        print(f"        reason: {job['excluded_reasons']}")
+    elif job.get("salary_note"):
+        print(f"        note: {job['salary_note']}")
+    if job.get("freshness_note"):
+        print(f"        note: {job['freshness_note']}")
     print(f"        {job.get('url', '')}")
 
 
@@ -91,6 +106,8 @@ def command_list(args: argparse.Namespace) -> int:
             return 0
         for job in jobs:
             print(f"{job['id']} | score={job['match_score']:>3} | {job['status']:<10} | {job['title']} | {job['company']} | {job['location']}")
+            if job["excluded_reasons"]:
+                print(f"    filtered: {job['excluded_reasons']}")
             print(f"    posted: {job['posted_text']} | experience: {job['experience']}")
             print(f"    {job['url']}")
     finally:
@@ -100,22 +117,56 @@ def command_list(args: argparse.Namespace) -> int:
 
 def command_open(args: argparse.Namespace) -> int:
     db = store()
+    job = db.get_job(args.job_id)
+    if not job:
+        db.close()
+        print(f"Unknown job ID: {args.job_id}")
+        return 2
     try:
-        job = db.get_job(args.job_id)
-        if not job:
-            print(f"Unknown job ID: {args.job_id}")
-            return 2
-        webbrowser.open(job["url"])
-        print("Opened the official job page. Review it and submit the application yourself.")
+        cfg = load_config()
+        with NaukriBrowser(cfg) as browser:
+            page = browser.new_page()
+            page.goto(job["url"], wait_until="domcontentloaded", timeout=cfg["browser"]["navigation_timeout_ms"])
+            page.wait_for_timeout(1200)
+            protection = browser.stop_reason(page)
+            if protection:
+                print(f"[SAFETY STOP] {protection}. Use the site manually; no bypass attempted.")
+                return 1
+            print("\nThe job is open in the saved visible browser profile.")
+            print("Inspect the job details. If you decide to apply, click Apply yourself in the browser.")
+            choice = input("After the application form is open, press Enter for optional safe field prefill, or type S to skip prefill/Q to quit: ").strip().lower()
+            if choice == "q":
+                return 0
+            if choice != "s":
+                if not is_naukri_host(page.url):
+                    print("External company portal detected. No fields were filled; use that site manually.")
+                else:
+                    filled = prefill_known_fields(page, cfg)
+                    if filled:
+                        print("Prefilled blank fields from your local profile. Verify every field:")
+                        for label in filled:
+                            print(f"  - {label}")
+                    else:
+                        print("No confidently labelled eligible fields were filled.")
+            print("\nNo Apply/Submit/Send button is clicked by this program.")
+            result = input("After you finish manually, type applied only if the site confirms success; R=reviewed, S=skip tracking, Q=quit: ").strip().lower()
+            if result == "applied":
+                db.update_status(args.job_id, "applied")
+            elif result == "r":
+                db.update_status(args.job_id, "reviewed")
+            elif result == "s":
+                db.update_status(args.job_id, "rejected")
+    except KeyboardInterrupt:
+        print("\nStopped by user.")
+        return 0
     finally:
         db.close()
     return 0
 
 
 def command_status(args: argparse.Namespace) -> int:
-    allowed = {"saved", "reviewed", "applied", "rejected", "interview", "offer", "closed"}
-    if args.status not in allowed:
-        print(f"Invalid status. Choose from: {', '.join(sorted(allowed))}")
+    if args.status not in STATUS_CHOICES:
+        print(f"Invalid status. Choose from: {', '.join(STATUS_CHOICES)}")
         return 2
     db = store()
     try:
@@ -138,8 +189,8 @@ def command_export(_args: argparse.Namespace) -> int:
         if not jobs:
             print("No saved jobs to export.")
             return 0
-        with out_path.open("w", newline="", encoding="utf-8-sig") as f:
-            writer = csv.DictWriter(f, fieldnames=list(jobs[0].keys()))
+        with out_path.open("w", newline="", encoding="utf-8-sig") as file:
+            writer = csv.DictWriter(file, fieldnames=list(jobs[0].keys()))
             writer.writeheader()
             writer.writerows(jobs)
     finally:
@@ -153,14 +204,14 @@ def make_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
     p = sub.add_parser("login", help="Open visible browser for manual sign-in")
     p.set_defaults(func=command_login)
-    p = sub.add_parser("search", help="Discover and score jobs (preview-only)")
+    p = sub.add_parser("search", help="Discover, filter and score jobs (preview-only)")
     p.add_argument("--limit", type=int, help="Override max jobs processed")
     p.set_defaults(func=command_search)
     p = sub.add_parser("list", help="List saved jobs")
     p.add_argument("--limit", type=int, default=50)
-    p.add_argument("--status", choices=["saved", "reviewed", "applied", "rejected", "interview", "offer", "closed"])
+    p.add_argument("--status", choices=STATUS_CHOICES)
     p.set_defaults(func=command_list)
-    p = sub.add_parser("open", help="Open a saved job in your default browser")
+    p = sub.add_parser("open", help="Open a saved job in your persistent browser for manual review")
     p.add_argument("job_id")
     p.set_defaults(func=command_open)
     p = sub.add_parser("status", help="Update application status")
