@@ -82,7 +82,7 @@ def _js_extract_cards() -> str:
           'span.job-post-day', 'span[class*="job-post-day"]',
           'span[class*="posted"]', 'span.time'
         ]) || ((node.innerText || '').match(
-          /\\b(?:just now|just posted|today|yesterday|few\\s+(?:minutes?|hours?)\\s+ago|\\d+\\s*(?:minutes?|mins?|hours?|hrs?|days?|weeks?)\\s+ago)\\b/i
+          /\b(?:just now|just posted|today|yesterday|few\s+(?:minutes?|hours?)\s+ago|\d+\s*(?:minutes?|mins?|hours?|hrs?|days?|weeks?)\s+ago)\b/i
         ) || [])[0] || null;
         const applicants = pick(node, [
           'span[class*="applicant"]', 'span[class*="applied"]'
