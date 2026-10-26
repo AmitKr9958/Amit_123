@@ -1,0 +1,13 @@
+{
+  "keywords": ["Power BI Developer", "Power BI Lead", "Business Intelligence Developer", "Data Analyst", "Reporting Analyst", "MIS Analyst"],
+  "locations": ["Delhi", "Gurugram", "Noida", "Remote"],
+  "experience_min": 5,
+  "experience_max": 11,
+  "posted_within_days": 7,
+  "max_pages_per_search": 2,
+  "min_match_score": 25,
+  "skills": ["Power BI", "DAX", "Power Query", "SQL", "Excel", "Power BI Service", "Data Modeling", "ETL", "Power Automate", "Microsoft Fabric", "Reporting", "Dashboard"],
+  "exclude_keywords": ["intern", "internship", "fresher", "trainee", "unpaid"],
+  "browser": {"headless": false, "channel": "chromium", "slow_mo_ms": 80, "navigation_timeout_ms": 45000},
+  "limits": {"max_jobs_per_run": 100}
+}
