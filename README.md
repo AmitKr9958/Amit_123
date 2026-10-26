@@ -1,24 +1,15 @@
 # Naukri Job Assistant
 
-A Windows-first Python + Playwright assistant to discover and rank Naukri jobs, prevent duplicates, and track applications locally. Preview-first; no unattended application submission. See setup instructions and inspirations in this README.
+A Windows-first Python + Playwright assistant to discover and rank Naukri jobs, prevent duplicates, and track applications locally. Preview-first; no unattended application submission. Setup: run `install.ps1`, then `run.ps1 login`, then `run.ps1 search`. Use `run.ps1 list` and `run.ps1 export` to inspect results. Open jobs with `run.ps1 open JOB_ID`; record your own status using `run.ps1 status JOB_ID applied` after you submit yourself.
 
-## Safe workflow
-1. Run `install.ps1` in PowerShell.
-2. Run `run.ps1 login` and sign into Naukri manually in the visible browser.
-3. Run `run.ps1 search` to discover and score jobs.
-4. Run `run.ps1 list` or `run.ps1 export` to review results.
-5. Use `run.ps1 open JOB_ID` to inspect the posting and submit manually. Then track it using `run.ps1 status JOB_ID applied`.
-
-The app does not store credentials, bypass CAPTCHA, or auto-submit applications. Local profile and tracker files are ignored by Git. Naukri's page layout may change.
+## Safety
+The browser is visible and uses a local persistent profile. Sign in manually and solve OTP/CAPTCHA yourself. The app does not store credentials, bypass verification, or auto-submit. Local profile/database/export files are gitignored. Naukri's page markup can change.
 
 ## Repository review
-- `codewithanuj28/naukri-auto-apply`: Playwright, config, freshness filters, dedupe, dry-run.
-- `lordzohar/Naukri-autoapply-bot`: Selenium, result collection, CSV logs and selector examples.
-- `pncodes10/Naukri-Automation`: modular utilities and profile-aware filtering; npm test script is a placeholder.
-- `feder-cr/Jobs_Applier_AI_Agent_AIHawk`: GitHub lookup resolved to `feder-cr/invisible_dots`, a general computer-agent project, so it is not assumed to be AIHawk source.
-- `suxrobGM/jobpilot`: campaign workflow, local agent, matching and application tracking.
+- `codewithanuj28/naukri-auto-apply`: Playwright, config, duplicate handling, filters, dry run.
+- `lordzohar/Naukri-autoapply-bot`: Selenium, browser search and CSV results.
+- `pncodes10/Naukri-Automation`: modular AI/job utilities; current package's test command is a placeholder.
+- `feder-cr/Jobs_Applier_AI_Agent_AIHawk`: GitHub lookup resolved to `feder-cr/invisible_dots`, a general computer-agent project. The intended AIHawk repo may have moved or been renamed, so no implementation was attributed to it.
+- `suxrobGM/jobpilot`: broader campaign workflow, match scoring, tracking, and review-oriented networking.
 
-No repository was copied wholesale. This project uses ideas rather than reusing whole codebases. Always respect Naukri's current Terms of Service.
-
-## License
-MIT.
+This implementation reuses concepts, not third-party code wholesale. Always comply with Naukri's current Terms of Service. License: MIT.
