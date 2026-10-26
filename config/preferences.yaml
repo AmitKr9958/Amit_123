@@ -1,0 +1,106 @@
+# Job search & eligibility preferences for Amit Kumar
+# Edit freely. All values are used by deterministic rules first.
+
+profile:
+  name: "Amit Kumar"
+  total_experience_years: 11
+  relevant_experience_years: 10
+  notice_period_days: 30          # or "Immediate" / "Serving notice"
+  current_location: "Delhi NCR"
+  preferred_locations:
+    - "Delhi"
+    - "Gurugram"
+    - "Gurgaon"
+    - "Noida"
+    - "Jaipur"
+  allow_remote: true              # only when JD explicitly says remote / WFH / hybrid-remote
+  min_salary_lpa: 11              # only enforced when salary is disclosed and reliable
+  max_applicants: 50              # soft preference; ideally < 25
+  ideal_max_applicants: 25
+  max_posting_age_hours: 48
+
+roles:
+  primary:
+    - "Power BI Developer"
+    - "Senior Power BI Developer"
+    - "Power BI Engineer"
+    - "Power BI Consultant"
+    - "BI Developer"
+    - "Data Analyst"
+    - "Reporting Analyst"
+    - "MIS Analyst"
+  secondary:
+    - "BI Team Lead"
+    - "Analytics Lead"
+    - "Business Intelligence Developer"
+    - "Power BI Specialist"
+
+skills:
+  must_have_any:                  # at least one should appear for higher score
+    - "Power BI"
+    - "PowerBI"
+    - "DAX"
+    - "Power Query"
+  strong:
+    - "SQL"
+    - "Excel"
+    - "Power Automate"
+    - "dashboard"
+    - "reporting"
+    - "data analytics"
+    - "SSRS"
+    - "Tableau"
+  nice_to_have:
+    - "Azure"
+    - "Fabric"
+    - "Python"
+    - "SSIS"
+    - "Snowflake"
+
+exclude:
+  title_keywords:
+    - "intern"
+    - "internship"
+    - "fresher"
+    - "trainee"
+    - "graduate"
+    - "0-1 year"
+    - "0-2 year"
+  experience_max_years: 6         # skip roles that ask for max < 6 yrs when you have ~10
+  companies: []                   # optional blacklist
+
+search:
+  queries:
+    - "Power BI Developer"
+    - "Senior Power BI Developer"
+    - "Power BI Engineer"
+    - "BI Developer"
+    - "Data Analyst Power BI"
+    - "Reporting Analyst"
+  locations:
+    - "delhi"
+    - "gurgaon"
+    - "noida"
+    - "jaipur"
+  pages_per_query: 2
+  max_jobs_per_run: 40
+  daily_application_cap: 30
+  concurrency: 1                  # keep 1 for safety / rate limits
+  min_delay_seconds: 4
+  max_delay_seconds: 12
+
+scoring:
+  min_score_to_apply: 0.55
+  weights:
+    title_match: 0.30
+    skills_match: 0.25
+    experience_fit: 0.20
+    location_fit: 0.15
+    freshness: 0.05
+    competition: 0.05
+
+application:
+  auto_submit: false              # safety: require review or explicit flag
+  pause_on_unknown_question: true
+  pause_on_external_site: true
+  answer_screening_from_profile_only: true

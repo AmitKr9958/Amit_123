@@ -1,0 +1,53 @@
+# Copy to data/profile.yaml and fill with your verified facts only.
+# This file is gitignored. Never invent experience or skills.
+
+personal:
+  full_name: "Amit Kumar"
+  email: "your.email@example.com"
+  phone: "+91XXXXXXXXXX"
+  current_city: "Delhi / NCR"
+  preferred_cities:
+    - "Delhi"
+    - "Gurugram"
+    - "Noida"
+    - "Jaipur"
+
+experience:
+  total_years: 11
+  relevant_years: 10
+  notice_period: "30 days"
+  currently_serving_notice: false
+  last_working_day: null
+
+compensation:
+  current_ctc_lpa: null           # optional; leave null if you prefer not to disclose
+  expected_ctc_lpa: 11
+  negotiable: true
+
+skills:
+  primary:
+    - "Power BI"
+    - "DAX"
+    - "Power Query"
+    - "SQL"
+    - "Microsoft Excel"
+    - "Power Automate"
+  secondary:
+    - "Dashboard development"
+    - "Reporting automation"
+    - "Data analytics"
+    - "SSRS"
+
+employment_history_summary: |
+  ~10 years building Power BI solutions, DAX models, automated reporting
+  and data analytics for enterprise stakeholders. Focus on reliable
+  dashboards, self-service BI and process automation.
+
+education: []                     # optional list of verified degrees
+certifications: []                # only real ones
+
+screening_defaults:
+  willing_to_relocate: "Within preferred locations only"
+  preferred_shift: "Day / General"
+  work_mode: "Hybrid or On-site preferred; Remote only if explicit"
+  reason_for_change: "Seeking greater ownership of BI / analytics outcomes and modern stack"

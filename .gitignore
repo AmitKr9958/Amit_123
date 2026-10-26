@@ -1,0 +1,35 @@
+# Secrets & local data
+.env
+.env.*
+!.env.example
+data/profile.yaml
+data/resume.*
+data/*.db
+data/*.db-*
+data/applied_history.csv
+data/browser_profile/
+data/screenshots/
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+.envrc
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Playwright
+playwright-report/
+test-results/
