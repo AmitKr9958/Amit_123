@@ -20,6 +20,8 @@ def load_config() -> dict:
             raise ValueError(f"Config field '{key}' must be numeric.")
     if cfg["experience_min"] > cfg["experience_max"]:
         raise ValueError("experience_min cannot exceed experience_max.")
+    cfg.setdefault("salary_floor_lpa", None)
+    cfg.setdefault("applicant", {})
     cfg.setdefault("browser", {})
     cfg["browser"].setdefault("headless", False)
     cfg["browser"].setdefault("channel", "chromium")
