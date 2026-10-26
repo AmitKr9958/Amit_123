@@ -35,8 +35,9 @@ async def cmd_login() -> None:
     session = BrowserSession()
     try:
         await session.start()
+        console.print(f"[cyan]Browser: {session.channel} · profile: {session.user_data_dir}[/cyan]")
         await session.ensure_authenticated(timeout_seconds=600)
-        console.print("[green]Session saved in data/browser_profile.[/green]")
+        console.print(f"[green]Session profile saved at {session.user_data_dir}.[/green]")
     finally:
         await session.close()
 
@@ -54,8 +55,8 @@ async def cmd_search_and_score(*, apply: bool = False) -> None:
 
     if apply and prefs.application.auto_submit:
         console.print(
-            "[red]Safety stop: auto_submit=true is blocked in this release. "
-            "Set application.auto_submit: false and use the supervised flow.[/red]"
+            "[red]Safety stop: auto_submit=true is blocked. Set application.auto_submit: false; "
+            "the final application submission must be reviewed and clicked by you.[/red]"
         )
         return
 
@@ -75,6 +76,7 @@ async def cmd_search_and_score(*, apply: bool = False) -> None:
 
     try:
         await session.start()
+        console.print(f"[cyan]Browser: {session.channel} · profile: {session.user_data_dir}[/cyan]")
         await session.ensure_authenticated()
 
         jobs = await collect_jobs(session, prefs)
@@ -83,9 +85,6 @@ async def cmd_search_and_score(*, apply: bool = False) -> None:
 
         for job in jobs:
             prior = get_status(job.job_id)
-            # Anything already decided (applied/skipped/external/failed/needs_review)
-            # is left alone. QUEUED jobs from an earlier dry-run are re-evaluated so
-            # that `run --apply` after a dry-run actually has jobs to work on.
             if prior is not None and prior != ApplicationStatus.QUEUED.value:
                 continue
             scored = score_job(job, prefs)
@@ -118,8 +117,8 @@ async def cmd_search_and_score(*, apply: bool = False) -> None:
 
         if not apply:
             console.print(
-                "\n[cyan]Dry-run complete.[/cyan] Re-run with --apply to attempt applications "
-                "(still supervised; auto_submit defaults to false)."
+                "\n[cyan]Dry-run complete.[/cyan] Re-run with --apply to open eligible applications "
+                "and fill supported fields. Review each form and submit manually."
             )
             return
 
@@ -194,17 +193,17 @@ def cmd_status() -> None:
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         prog="naukri-apply",
-        description="Supervised Naukri job search, scoring, and application assistant",
+        description="Microsoft Edge Naukri job search and supervised application assistant",
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    sub.add_parser("login", help="Open browser and complete manual login / OTP once")
-    p_run = sub.add_parser("run", help="Search + score jobs (add --apply to attempt apply)")
+    sub.add_parser("login", help="Open Microsoft Edge and complete login / OTP once")
+    p_run = sub.add_parser("run", help="Search + score jobs (add --apply to fill supported forms)")
     p_run.add_argument(
         "--apply",
         action="store_true",
-        help="Attempt applications for eligible jobs (supervised; respects auto_submit=false)",
+        help="Open eligible applications and fill supported fields; final submission is manual",
     )
     sub.add_parser("status", help="Show recent tracked applications")
     sub.add_parser("init-db", help="Create SQLite schema")

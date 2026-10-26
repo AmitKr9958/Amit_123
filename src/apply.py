@@ -161,13 +161,15 @@ async def _handle_screening(
             if await box.count():
                 await box.fill(draft.answer)
                 await asyncio.sleep(0.5)
+                # Never click generic submit controls while handling a question.
+                # A site may wire a "Submit" button to the final application action.
                 send_btn = page.locator(
-                    "button:has-text('Submit'), button:has-text('Send'), "
-                    "button:has-text('Save'), button[type='submit']"
+                    "button:has-text('Send'), button:has-text('Save'), "
+                    "button:has-text('Continue'), button:has-text('Next')"
                 ).first
                 if await send_btn.count():
                     label = ((await send_btn.inner_text()) or "").lower()
-                    if "apply" not in label:
+                    if not any(word in label for word in ("apply", "submit", "application")):
                         await send_btn.click()
                         await asyncio.sleep(1)
         except Exception as exc:
@@ -228,22 +230,12 @@ async def attempt_apply(
     await asyncio.sleep(1.5)
     await _handle_screening(page, profile, prefs)
 
-    if prefs.application.auto_submit:
-        try:
-            submit = page.locator(
-                "button:has-text('Submit'), button:has-text('Apply'), "
-                "button:has-text('Send Application')"
-            ).first
-            if await submit.count():
-                await submit.click()
-                await asyncio.sleep(2)
-        except Exception:
-            pass
-        mark_applied(job.job_id, "auto_submit")
-        notify_applied(job.title, job.company, scored.score.total)
-        return ApplicationStatus.APPLIED
-
-    if Confirm.ask("Mark this job as successfully applied?", default=False):
+    console.print(
+        "[yellow]Review every field now. If the form is complete and accurate, "
+        "click the final Submit/Apply button yourself in Edge. "
+        "This tool will not submit the application for you.[/yellow]"
+    )
+    if Confirm.ask("Did you manually submit this application successfully?", default=False):
         mark_applied(job.job_id, "user confirmed")
         notify_applied(job.title, job.company, scored.score.total)
         return ApplicationStatus.APPLIED

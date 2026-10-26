@@ -48,20 +48,24 @@ def parse_posted_hours(text: str | None) -> float | None:
     if not text:
         return None
     t = text.lower().strip()
-    if "just now" in t or "today" in t:
+    if any(phrase in t for phrase in ("just now", "just posted", "today")):
         return 1.0
     if "yesterday" in t:
         return 24.0
-    m = re.search(r"(\d+)\s*(minute|min)", t)
+    if re.search(r"few\s+minutes?\s+ago", t):
+        return 5.0 / 60.0
+    if re.search(r"few\s+hours?\s+ago", t):
+        return 6.0
+    m = re.search(r"(\d+)\s*(?:minutes?|mins?)\b", t)
     if m:
         return float(m.group(1)) / 60.0
-    m = re.search(r"(\d+)\s*hour", t)
+    m = re.search(r"(\d+)\s*(?:hours?|hrs?)\b", t)
     if m:
         return float(m.group(1))
-    m = re.search(r"(\d+)\s*day", t)
+    m = re.search(r"(\d+)\s*days?\b", t)
     if m:
         return float(m.group(1)) * 24.0
-    m = re.search(r"(\d+)\s*week", t)
+    m = re.search(r"(\d+)\s*weeks?\b", t)
     if m:
         return float(m.group(1)) * 24.0 * 7
     return None

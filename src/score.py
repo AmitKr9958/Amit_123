@@ -116,21 +116,34 @@ def _location_score(job: JobListing, prefs: Preferences) -> tuple[float, list[st
     if not loc:
         reasons.append("Location unknown")
         return 0.0, reasons
-    preferred = [_norm(x) for x in prefs.profile.preferred_locations if _norm(x)]
-    for place in preferred:
-        if place in loc:
-            reasons.append(f"Preferred location: {place}")
-            return 1.0, reasons
+
+    # Explicit remote/WFH listings can be considered even if an office city is
+    # also displayed. "Hybrid" alone is not remote and does not override city.
     remote_tokens = ("remote", "work from home", "wfh", "work-from-home")
     if any(token in loc for token in remote_tokens):
         if prefs.profile.allow_remote:
-            reasons.append("Remote location explicitly stated")
+            reasons.append("Remote work explicitly stated in location")
             return 0.85, reasons
         reasons.append("Remote work is disabled by config")
         return 0.0, reasons
-    if any(x in loc for x in ("delhi", "ncr", "gurgaon", "gurugram", "noida")):
-        reasons.append("Delhi NCR area")
-        return 0.9, reasons
+
+    preferred = [_norm(x) for x in prefs.profile.preferred_locations if _norm(x)]
+    # Split multi-location labels before matching. A substring match against
+    # "Delhi" must not accept a mixed label such as "Hybrid - Pune, Delhi".
+    segments = re.split(r"\s*(?:,|/|\||;|\s[-–—]\s)\s*", loc)
+    neutral_modes = re.compile(r"\b(?:hybrid|onsite|on-site|office|india)\b", re.I)
+    segments = [neutral_modes.sub("", part).strip() for part in segments]
+    segments = [part for part in segments if part]
+    segment_matches = [
+        any(place in segment for place in preferred) or segment in {"ncr", "delhi ncr"}
+        for segment in segments
+    ]
+    if segment_matches and all(segment_matches):
+        reasons.append("Preferred location: " + ", ".join(segments))
+        return 1.0, reasons
+    if any(segment_matches):
+        reasons.append(f"Mixed preferred and non-preferred locations: {job.location}")
+        return 0.0, reasons
     reasons.append(f"Location outside preferred set: {job.location}")
     return 0.0, reasons
 
