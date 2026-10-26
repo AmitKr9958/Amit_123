@@ -130,8 +130,8 @@ def _location_score(job: JobListing, prefs: Preferences) -> tuple[float, list[st
     preferred = [_norm(x) for x in prefs.profile.preferred_locations if _norm(x)]
     # Split multi-location labels before matching. A substring match against
     # "Delhi" must not accept a mixed label such as "Hybrid - Pune, Delhi".
-    segments = re.split(r"\\s*(?:,|/|\\||;|\\s[-–—]\\s)\\s*", loc)
-    neutral_modes = re.compile(r"\\b(?:hybrid|onsite|on-site|office|india)\\b", re.I)
+    segments = re.split(r"\s*(?:,|/|\||;|\s[-–—]\s)\s*", loc)
+    neutral_modes = re.compile(r"\b(?:hybrid|onsite|on-site|office|india)\b", re.I)
     segments = [neutral_modes.sub("", part).strip() for part in segments]
     segments = [part for part in segments if part]
     segment_matches = [
