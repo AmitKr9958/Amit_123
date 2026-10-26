@@ -134,8 +134,8 @@ class BrowserSession:
             return
 
         console.print(
-            "[yellow]Not logged in. Opening Naukri login page.\\n"
-            "Complete password / OTP / CAPTCHA / MFA in the Edge window.\\n"
+            "[yellow]Not logged in. Opening Naukri login page.\n"
+            "Complete password / OTP / CAPTCHA / MFA in the Edge window.\n"
             "Do not close the window. Waiting up to "
             f"{timeout_seconds}s...[/yellow]"
         )
