@@ -1,178 +1,120 @@
 # Naukri Apply (local-first supervised assistant)
 
-A **production-oriented, local-first** assistant for discovering, scoring, and (optionally) applying to Naukri.com jobs that match a configured Power BI / BI profile.
+A local-first assistant for discovering, scoring, and preparing applications for Naukri.com jobs that match a configured Power BI / BI profile. **Microsoft Edge is the default browser.**
 
-This is **not** a blind spray bot. It is designed around:
+It automates repetitive search and form-filling steps while keeping account verification and the final submission under your control.
 
-- Persistent browser profile + **manual login / OTP / CAPTCHA** (credentials never stored in code)
-- Deterministic eligibility rules first, explainable scores
-- Human-paced, low-concurrency navigation
-- SQLite tracking and deduplication
-- Pause on external career sites and unknown screening questions
-- `auto_submit: false` by default
+- Persistent Microsoft Edge profile; reuse the signed-in session across runs
+- If logged out, open the login page and wait while you complete password / OTP / CAPTCHA / MFA manually
+- Deterministic eligibility rules, explainable scores, SQLite tracking and deduplication
+- Fill supported form fields using verified facts from `data/profile.yaml`
+- Pause for unknown screening questions, external company sites, and final review
+- Final application submission is always manual; the program will not click the final Submit/Apply button
+- No passwords or API keys committed to source
 
-> **Account risk & ToS**  
-> Automated bulk applying can violate Naukri’s Terms of Service and may lead to restrictions. Use only on your own account, keep volume low, supervise every run, and prefer quality over quantity. This project does not bypass security controls.
+> **Account risk & Terms of Service**  
+> Automated bulk applying may violate a job site's terms or lead to account restrictions. Use this tool only on your own account, respect site rules, and review each application. The project does not bypass OTP, CAPTCHA, MFA, or other security controls.
 
----
+## How the workflow works
 
-## Architecture (short)
+1. Open Microsoft Edge with a dedicated persistent profile at `data/edge_profile/`.
+2. Reuse an authenticated session. If the session expires, complete verification manually in Edge.
+3. Search configured queries and locations; extract job details.
+4. Score jobs and skip duplicates/ineligible or stale listings.
+5. Open eligible listings and fill supported fields from your verified profile.
+6. Pause when it cannot safely answer a question or when a company-site redirect is detected.
+7. You review the completed application and click the final submit button yourself.
+8. Record the result in the local SQLite tracker.
 
-```
-config/preferences.yaml   → roles, locations, skills, caps, weights
-data/profile.yaml         → verified personal facts (gitignored)
-data/browser_profile/     → Playwright persistent session
-data/applied.db           → seen / scored / applied history
+Selectors are heuristic and may need maintenance when Naukri changes its UI. No tool can guarantee every application form is supported.
 
-src/
-  browser.py   persistent context + auth pause
-  search.py    multi-query discovery + card extraction
-  extract.py   experience / salary / freshness parsers
-  score.py     deterministic relevance + hard exclusions
-  apply.py     supervised apply flow
-  tracker.py   SQLite
-  cli.py       login | run | status
-```
+## Setup (Windows PowerShell)
 
-Ideas adapted from open-source Naukri bots (Selenium multi-tab search, CSV history) and stronger patterns from local agent systems (persistent session, scoring before apply, approval gates). Selectors are heuristic and will need occasional updates when Naukri redesigns the UI.
-
----
-
-## Setup
-
-```bash
+```powershell
 git clone https://github.com/AmitKr9958/Amit_123.git naukri-apply
-cd naukri-apply
+Set-Location .\naukri-apply
 
-python -m venv .venv
-# Windows: .venv\Scripts\activate
-source .venv/bin/activate
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -e ".[dev]"
 
-pip install -r requirements.txt
-playwright install chromium
-
-cp .env.example .env
-cp data/profile.example.yaml data/profile.yaml
-# Edit data/profile.yaml with verified facts only
-# Edit config/preferences.yaml for roles / locations / caps
+# Copy the sample profile, then edit it with verified facts only.
+if (-not (Test-Path ".\data\profile.yaml")) {
+    Copy-Item ".\data\profile.example.yaml" ".\data\profile.yaml"
+}
+Copy-Item .env.example .env -ErrorAction SilentlyContinue
 ```
 
----
+Install Microsoft Edge if it is not already installed. The default `BROWSER_CHANNEL=msedge` launches installed Edge through Playwright. The browser profile is stored separately at `data/edge_profile/`, not in your everyday Edge profile.
+
+If Edge does not launch, verify that Microsoft Edge is installed and up to date. You can explicitly set the browser in the current PowerShell session:
+
+```powershell
+$env:BROWSER_CHANNEL = "msedge"
+$env:HEADLESS = "false"
+```
 
 ## Usage
 
-```bash
-# 1. One-time (or when session expires): open browser and log in manually
-python -m src.cli login
-
-# 2. Dry-run: search + score, write to SQLite, print table (no apply).
-#    Eligible jobs are saved as QUEUED and picked up by step 3.
-python -m src.cli run
-
-# 3. Supervised apply for eligible jobs (still pauses; auto_submit=false)
-python -m src.cli run --apply
-
-# 4. Recent outcomes
-python -m src.cli status
-```
-
-Or after `pip install -e .`:
-
-```bash
-naukri-apply login
-naukri-apply run
-naukri-apply run --apply
-naukri-apply status
-```
-
----
-
-## Preferences (your Power BI profile defaults)
-
-Already seeded in `config/preferences.yaml`:
-
-| Setting | Default |
-|--------|---------|
-| Roles | Power BI Developer, Senior Power BI Developer, Power BI Engineer/Consultant, BI Developer, Data Analyst, Reporting Analyst, MIS Analyst, BI Team Lead |
-| Skills | Power BI, DAX, Power Query, SQL, Excel, Power Automate, dashboards, reporting |
-| Experience | ~11 total / ~10 relevant |
-| Locations | Delhi, Gurugram/Gurgaon, Noida, Jaipur (+ explicit remote only) |
-| Min salary | ₹11 LPA (job rejected only if disclosed salary ceiling is below this) |
-| Freshness | prefer ≤ 48 hours |
-| Competition | prefer < 50 applicants (ideal < 25) |
-| Daily cap | 30 |
-| Concurrency | 1 |
-
-Tune freely. Hard exclusions (intern/fresher keywords, junior experience ceilings) override score.
-
----
-
-## Safety defaults
-
-| Control | Behaviour |
-|--------|-----------|
-| Credentials | Never in repo; manual browser login only |
-| CAPTCHA / OTP / MFA | Always pause for human |
-| `auto_submit` | `false` — you confirm |
-| External company sites | Flagged; optional pause |
-| Unknown screening questions | Pause; answer only from verified profile |
-| Invented facts | Forbidden by design |
-| Rate limiting | Human-like delays + daily cap |
-
----
-
-## Optional integrations
-
-**Telegram** — set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in `.env`.  
-Run summaries and successful applies are posted when configured.
-
-**LLM screening drafts** — set `OPENAI_API_KEY` and/or `GEMINI_API_KEY`.  
-Common fields (notice period, expected CTC, name, …) map **deterministically** from `data/profile.yaml`. Free-text questions may get an LLM draft instructed to use **only** profile facts (or reply `INSUFFICIENT_FACTS`). Drafts always surface for review; sensitive topics force review.
-
-```bash
-# example .env fragments
-TELEGRAM_BOT_TOKEN=123:abc
-TELEGRAM_CHAT_ID=987654321
-# OPENAI_API_KEY=sk-...
-```
-
-## What this does *not* do
-
-- Silent AI answers without review
-- Multi-board (LinkedIn / Indeed) — out of scope for this repo
-- Guaranteed unbroken selectors forever — Naukri changes UI; extraction is heuristic
-- Cloud headless runs from datacenter IPs (intentionally local)
-- Bypassing CAPTCHA, OTP, or MFA
-
----
-
-## Scheduling (Windows)
+Run these commands from the repository root with the virtual environment activated.
 
 ```powershell
-# once
-.\scripts\setup_task.ps1
-# task runs scripts\run_daily.bat at 09:00 (dry-run by default)
-# edit run_daily.bat to enable --apply when you are ready
+# 1. Open Edge and sign in once. Complete OTP/CAPTCHA/MFA manually if requested.
+python -m src.cli login
+
+# 2. Dry run: search, score, and track eligible jobs; no application forms opened.
+python -m src.cli run
+
+# 3. Prepare eligible applications: open forms and fill supported fields.
+#    Review each form and click the final Submit button yourself.
+python -m src.cli run --apply
+
+# 4. See tracked outcomes
+python -m src.cli status
+
+# Initialize the local database if needed
+python -m src.cli init-db
 ```
 
-Linux/macOS: use `scripts/run_daily.sh` with cron.
+The same Edge session/profile is reused between commands. To use a different profile directory, set `BROWSER_USER_DATA_DIR` in your environment. Do not point this tool at your everyday Edge profile while Edge is already running.
+
+## Preferences
+
+Defaults in `config/preferences.yaml` are tailored to the current profile and can be edited:
+
+| Setting | Default |
+|---|---|
+| Roles | Power BI Developer, Senior Power BI Developer, BI Developer, Data Analyst, Reporting/MIS Analyst |
+| Locations | Delhi, Gurugram/Gurgaon, Noida, Jaipur; explicit remote roles allowed |
+| Minimum salary | ₹11 LPA when a reliable salary is disclosed |
+| Freshness | Up to 48 hours |
+| Applicant count | Prefer fewer than 50; ideally fewer than 25 |
+| Daily application cap | 30 |
+| Concurrency | 1 |
+
+The cap is a maximum, not a target. Do not increase activity to evade a site's limits.
+
+## Profile privacy
+
+- Keep `data/profile.yaml`, resume files, browser profile, database, and `.env` local.
+- Populate the profile with accurate information only.
+- Do not store passwords, OTPs, session cookies, or other secrets in YAML or source code.
+- Screening answers are drafted from profile facts only. Unknown or sensitive questions require your judgment.
+
+## Scheduling
+
+Scheduled tasks should run search/scoring in dry-run mode by default. Do not run unattended application submission. If using Windows Task Scheduler, keep the machine awake and run tasks only in a session you control.
 
 ## Development
 
-```bash
-pip install -e ".[dev]"
+```powershell
 ruff check .
-pytest tests/ -q
+pytest -q
 ```
 
-CI (`.github/workflows/ci.yml`) runs both on every push and PR.
-
-> **Unattended runs:** the apply flow asks for confirmation in the terminal. Scheduled
-> runs should stay dry-run (the default in `scripts/run_daily.*`); use `--apply` only
-> in a session you are watching.
-
----
+The tests validate code behavior, not the live Naukri UI. Always verify a small dry-run before using `--apply`.
 
 ## License
 
-MIT. Use at your own risk. Respect Naukri’s terms and applicable law.
+MIT. Use at your own risk. Respect site terms and applicable law.
