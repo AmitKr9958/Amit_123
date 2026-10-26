@@ -52,6 +52,13 @@ async def cmd_search_and_score(*, apply: bool = False) -> None:
         console.print("Copy data/profile.example.yaml → data/profile.yaml first.")
         sys.exit(1)
 
+    if apply and prefs.application.auto_submit:
+        console.print(
+            "[red]Safety stop: auto_submit=true is blocked in this release. "
+            "Set application.auto_submit: false and use the supervised flow.[/red]"
+        )
+        return
+
     applied_today = count_applied_today()
     remaining = max(0, prefs.search.daily_application_cap - applied_today)
     console.print(

@@ -29,9 +29,8 @@ def _title_score(title: str, prefs: Preferences) -> tuple[float, list[str]]:
         if _norm(role) in t:
             reasons.append(f"Secondary role match: {role}")
             return 0.7, reasons
-    # partial token overlap
     tokens = set(re.findall(r"[a-z0-9]+", t))
-    primary_tokens = set()
+    primary_tokens: set[str] = set()
     for role in prefs.roles.primary:
         primary_tokens.update(re.findall(r"[a-z0-9]+", _norm(role)))
     overlap = tokens & primary_tokens
@@ -44,11 +43,7 @@ def _title_score(title: str, prefs: Preferences) -> tuple[float, list[str]]:
 
 def _skills_score(job: JobListing, prefs: Preferences) -> tuple[float, list[str], list[str]]:
     blob = " ".join(
-        [
-            job.title or "",
-            job.description_snippet or "",
-            " ".join(job.skills or []),
-        ]
+        [job.title or "", job.description_snippet or "", " ".join(job.skills or [])]
     )
     must = _contains_any(blob, prefs.skills.must_have_any)
     strong = _contains_any(blob, prefs.skills.strong)
@@ -75,35 +70,34 @@ def _experience_score(job: JobListing, prefs: Preferences) -> tuple[float, list[
     exclusions: list[str] = []
     my_rel = prefs.profile.relevant_experience_years
     my_total = prefs.profile.total_experience_years
-
-    # Hard exclude by title keywords
     title = _norm(job.title)
     for kw in prefs.exclude.title_keywords:
         if _norm(kw) in title:
             exclusions.append(f"Excluded title keyword: {kw}")
             return 0.0, reasons, exclusions
 
-    exp_min = job.experience_min
-    exp_max = job.experience_max
+    exp_min, exp_max = job.experience_min, job.experience_max
     if exp_min is None and exp_max is None and job.experience_text:
-        # try parse "5-10 Yrs"
-        m = re.search(r"(\d+(?:\.\d+)?)\s*(?:-|–|to)\s*(\d+(?:\.\d+)?)", job.experience_text or "")
+        m = re.search(
+            r"(\d+(?:\.\d+)?)\s*(?:-|–|to)\s*(\d+(?:\.\d+)?)",
+            job.experience_text,
+        )
         if m:
             exp_min, exp_max = float(m.group(1)), float(m.group(2))
         else:
-            m2 = re.search(r"(\d+(?:\.\d+)?)\s*\+?\s*(?:yrs?|years?)", _norm(job.experience_text))
+            m2 = re.search(
+                r"(\d+(?:\.\d+)?)\s*\+?\s*(?:yrs?|years?)",
+                _norm(job.experience_text),
+            )
             if m2:
                 exp_min = float(m2.group(1))
 
     if exp_max is not None and exp_max < prefs.exclude.experience_max_years and my_rel >= 8:
-        # role is clearly junior
         exclusions.append(f"Experience ceiling too low ({exp_max} yrs) for ~{my_rel} yrs profile")
         return 0.0, reasons, exclusions
-
     if exp_min is not None and my_total < exp_min - 1:
         exclusions.append(f"Below minimum experience ({exp_min}+ yrs)")
         return 0.15, reasons, exclusions
-
     if exp_min is not None and exp_max is not None:
         if exp_min <= my_rel <= exp_max + 1:
             reasons.append(f"Experience fit: {exp_min}-{exp_max} vs yours ~{my_rel}")
@@ -112,7 +106,6 @@ def _experience_score(job: JobListing, prefs: Preferences) -> tuple[float, list[
             reasons.append("At or above minimum experience")
             return 0.75, reasons, exclusions
         return 0.3, reasons, exclusions
-
     reasons.append("Experience range not disclosed")
     return 0.55, reasons, exclusions
 
@@ -122,71 +115,71 @@ def _location_score(job: JobListing, prefs: Preferences) -> tuple[float, list[st
     reasons: list[str] = []
     if not loc:
         reasons.append("Location unknown")
-        return 0.4, reasons
-    preferred = [_norm(x) for x in prefs.profile.preferred_locations]
-    for p in preferred:
-        if p in loc:
-            reasons.append(f"Preferred location: {p}")
+        return 0.0, reasons
+    preferred = [_norm(x) for x in prefs.profile.preferred_locations if _norm(x)]
+    for place in preferred:
+        if place in loc:
+            reasons.append(f"Preferred location: {place}")
             return 1.0, reasons
     remote_tokens = ("remote", "work from home", "wfh", "work-from-home")
-    if any(r in loc for r in remote_tokens):
+    if any(token in loc for token in remote_tokens):
         if prefs.profile.allow_remote:
-            reasons.append("Explicit remote allowed by config")
+            reasons.append("Remote location explicitly stated")
             return 0.85, reasons
-        reasons.append("Remote but config disallows unless explicit + preferred")
-        return 0.2, reasons
-    # NCR umbrella
+        reasons.append("Remote work is disabled by config")
+        return 0.0, reasons
     if any(x in loc for x in ("delhi", "ncr", "gurgaon", "gurugram", "noida")):
         reasons.append("Delhi NCR area")
         return 0.9, reasons
     reasons.append(f"Location outside preferred set: {job.location}")
-    return 0.15, reasons
+    return 0.0, reasons
 
 
 def _freshness_score(job: JobListing, prefs: Preferences) -> tuple[float, list[str]]:
-    reasons: list[str] = []
     hours = job.posted_hours_ago
     max_h = prefs.profile.max_posting_age_hours
     if hours is None:
-        reasons.append("Posting age unknown")
-        return 0.5, reasons
+        return 0.0, ["Posting age unknown; cannot verify freshness"]
     if hours <= max_h:
-        reasons.append(f"Fresh post (~{hours:.0f}h)")
-        return 1.0, reasons
-    if hours <= max_h * 2:
-        reasons.append(f"Moderately recent (~{hours:.0f}h)")
-        return 0.5, reasons
-    reasons.append(f"Stale (~{hours:.0f}h > {max_h}h preference)")
-    return 0.15, reasons
+        return 1.0, [f"Fresh post (~{hours:.0f}h)"]
+    return 0.0, [f"Stale (~{hours:.0f}h > {max_h}h maximum)"]
 
 
 def _competition_score(job: JobListing, prefs: Preferences) -> tuple[float, list[str]]:
-    reasons: list[str] = []
     n = job.applicants
     if n is None:
-        reasons.append("Applicant count not shown")
-        return 0.5, reasons
+        return 0.5, ["Applicant count not shown"]
     if n <= prefs.profile.ideal_max_applicants:
-        reasons.append(f"Low competition ({n} applicants)")
-        return 1.0, reasons
+        return 1.0, [f"Low competition ({n} applicants)"]
     if n <= prefs.profile.max_applicants:
-        reasons.append(f"Acceptable competition ({n})")
-        return 0.6, reasons
-    reasons.append(f"High competition ({n})")
-    return 0.2, reasons
+        return 0.6, [f"Acceptable competition ({n})"]
+    return 0.2, [f"High competition ({n})"]
 
 
 def _policy_exclusions(job: JobListing, prefs: Preferences) -> list[str]:
-    """Hard rules from config that were documented but never enforced."""
+    """Apply hard eligibility rules before a job can enter the apply queue."""
     out: list[str] = []
     company = _norm(job.company)
     for blocked in prefs.exclude.companies:
         if company and _norm(blocked) and _norm(blocked) in company:
             out.append(f"Blacklisted company: {blocked}")
+
     floor = prefs.profile.min_salary_lpa
-    # Only when salary is disclosed: reject if even the top of the range is below floor.
     if floor and job.salary_max_lpa is not None and job.salary_max_lpa < floor:
         out.append(f"Salary ceiling {job.salary_max_lpa} LPA below minimum {floor} LPA")
+
+    hours = job.posted_hours_ago
+    if hours is None:
+        out.append("Posting age unavailable; freshness cannot be verified")
+    elif hours > prefs.profile.max_posting_age_hours:
+        out.append(
+            f"Posting age {hours:.1f}h exceeds maximum "
+            f"{prefs.profile.max_posting_age_hours}h"
+        )
+
+    location_score, location_reasons = _location_score(job, prefs)
+    if location_score <= 0:
+        out.append("Location is unknown or outside configured preferred locations")
     return out
 
 
@@ -195,7 +188,7 @@ def score_job(job: JobListing, prefs: Preferences) -> ScoredJob:
     title_s, title_r = _title_score(job.title, prefs)
     skills_s, skills_r, missing = _skills_score(job, prefs)
     exp_s, exp_r, exclusions = _experience_score(job, prefs)
-    exclusions = exclusions + _policy_exclusions(job, prefs)
+    exclusions.extend(_policy_exclusions(job, prefs))
     loc_s, loc_r = _location_score(job, prefs)
     fresh_s, fresh_r = _freshness_score(job, prefs)
     comp_s, comp_r = _competition_score(job, prefs)
@@ -208,8 +201,6 @@ def score_job(job: JobListing, prefs: Preferences) -> ScoredJob:
         + fresh_s * w.freshness
         + comp_s * w.competition
     )
-
-    # Hard exclusions dominate
     if exclusions:
         total = min(total, 0.25)
 
